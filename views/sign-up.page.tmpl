@@ -1,0 +1,48 @@
+{{template "base" .}}
+
+{{define "title"}}Home{{end}}
+
+{{define "main"}}
+    <h2>Sign Up</h2>
+    <form method="post" action="/sign-up">
+        <div>
+            <label for="sign-up-name">Name</label>
+            {{with .FormErrors.name}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="sign-up-name" type="text" name="name" value="{{.FormData.Get "name"}}"/>
+        </div>
+        <div>
+            <label for="sign-up-phone-number">Phone Number</label>
+            {{with .FormErrors.phone_number}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="sign-up-phone-number" required  type="text" name="phone_number"
+                   value="{{.FormData.Get "phone_number"}}"/>
+        </div>
+        <div>
+            <label for="sign-up-email">Email</label>
+            {{with .FormErrors.email}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="sign-up-email" required type="email" name="email" value="{{.FormData.Get "email"}}"/>
+        </div>
+        <div>
+            <label for="sign-up-password">Password</label>
+            {{with .FormErrors.password}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="sign-up-password" required type="password" name="password"/>
+        </div>
+        <div>
+            <label for="sign-up-password">Confirm Password</label>
+            {{with .FormErrors.password_confirmation}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="sign-up-password" required type="password" name="password_confirmation"/>
+        </div>
+        <div>
+            <input type="submit" value="Sign up"/>
+        </div>
+    </form>
+{{end}}

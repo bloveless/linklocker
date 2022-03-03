@@ -1,0 +1,36 @@
+{{template "base" .}}
+
+{{define "title"}}Home{{end}}
+
+{{define "main"}}
+    {{if .Authenticated}}
+        {{range .Links}}
+            URL: {{.URL}}
+            Display URL: {{.DisplayURL}}
+        {{end}}
+        <h2>Add a link</h2>
+        <form method="post" action="/link">
+            <div>
+                <label for="create-link-url">URL</label>
+                {{with .FormErrors.url}}
+                    <label class="error">{{.}}</label>
+                {{end}}
+                <input id="create-link-url" required type="url" name="url" value="{{.FormData.Get "url"}}"/>
+            </div>
+            <div>
+                <label for="create-link-display-url">Display URL</label>
+                {{with .FormErrors.display_url}}
+                    <label class="error">{{.}}</label>
+                {{end}}
+                <span>(if you'd like the screenshot to show a different URL than the link)</span>
+                <input id="create-link-display-url" type="url" name="display_url"
+                       value="{{.FormData.Get "display_url"}}"/>
+            </div>
+            <div>
+                <input type="submit" name="Submit Link"/>
+            </div>
+        </form>
+    {{ else }}
+        <div>Log in to start submitting links</div>
+    {{ end }}
+{{end}}

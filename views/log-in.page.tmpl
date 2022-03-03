@@ -1,0 +1,26 @@
+{{template "base" .}}
+
+{{define "title"}}Home{{end}}
+
+{{define "main"}}
+    <h2>Log in</h2>
+    <form method="post" action="/log-in">
+        <div>
+            <label for="log-in-email">Email</label>
+            {{with .FormErrors.email}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="log-in-email" required type="email" name="email" value="{{.FormData.Get "email"}}"/>
+        </div>
+        <div>
+            <label for="log-in-password">Password</label>
+            {{with .FormErrors.password}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="log-in-password" required type="password" name="password"/>
+        </div>
+        <div>
+            <input type="submit" value="Log in"/>
+        </div>
+    </form>
+{{end}}
