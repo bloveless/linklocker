@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"time"
@@ -12,12 +13,20 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-type server struct {
-	db      *sql.DB
-	session *sessions.Session
+type screenshotRequest struct {
+	linkId     string
+	url        string
+	displayUrl string
 }
 
-func newServer() server {
+type server struct {
+	db                 *sql.DB
+	session            *sessions.Session
+	screenshotRequests chan screenshotRequest
+	chromeDpContext    context.Context
+}
+
+func newServer(chromeCtx context.Context) server {
 	db, err := sql.Open("sqlite3", "linklocker.sqlite")
 	if err != nil {
 		panic(err)
@@ -52,8 +61,12 @@ func newServer() server {
 		panic(err)
 	}
 
+	screenshotRequests := make(chan screenshotRequest)
+
 	return server{
-		db:      db,
-		session: session,
+		db:                 db,
+		session:            session,
+		screenshotRequests: screenshotRequests,
+		chromeDpContext:    chromeCtx,
 	}
 }

@@ -80,6 +80,12 @@ func (s server) createLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.screenshotRequests <- screenshotRequest{
+		linkId:     linkUuid,
+		url:        linkUrl,
+		displayUrl: displayUrl,
+	}
+
 	http.Redirect(w, r, "/", http.StatusFound)
 }
 

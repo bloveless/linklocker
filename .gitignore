@@ -1,5 +1,7 @@
 .idea
 linklocker.sqlite
+static/screenshots/*
+!static/screenshots/.keep
 
 # Binaries for programs and plugins
 *.exe
