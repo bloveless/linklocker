@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -24,9 +25,9 @@ type link struct {
 	Id            uuid.UUID
 	UserId        uuid.UUID
 	SortOrder     int
-	URL           string
-	DisplayURL    string
-	ScreenshotURL *string
+	Url           string
+	DisplayUrl    string
+	ScreenshotUrl *string
 }
 
 type templateData struct {
@@ -321,7 +322,7 @@ func (s server) addDefaultData(w http.ResponseWriter, r *http.Request, td *templ
 		var links []link
 		for linkRows.Next() {
 			var l link
-			err = linkRows.Scan(&l.Id, &l.UserId, &l.SortOrder, &l.URL, &l.DisplayURL, &l.ScreenshotURL)
+			err = linkRows.Scan(&l.Id, &l.UserId, &l.SortOrder, &l.Url, &l.DisplayUrl, &l.ScreenshotUrl)
 			if err != nil {
 				log.Println(err)
 				return err
@@ -349,7 +350,7 @@ func (s server) addDefaultData(w http.ResponseWriter, r *http.Request, td *templ
 func (s server) render(w http.ResponseWriter, r *http.Request, viewTemplate string, td *templateData) {
 	files := []string{"./views/" + viewTemplate, "./views/base.layout.tmpl"}
 
-	ts, err := template.ParseFiles(files...)
+	ts, err := template.New(filepath.Base(viewTemplate)).Funcs(template.FuncMap{"mod": func(i, j int) bool { return (i+1)%j == 0 }}).ParseFiles(files...)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)

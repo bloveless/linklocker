@@ -1,5 +1,130 @@
-body {}
+body {
+    min-height: 100vh;
+    background-color: #ffffff;
+    opacity: 0.8;
+    background-image: linear-gradient(#f1f1f1 2px, transparent 2px), linear-gradient(90deg, #f1f1f1 2px, transparent 2px), linear-gradient(#f1f1f1 1px, transparent 1px), linear-gradient(90deg, #f1f1f1 1px, #ffffff 1px);
+    background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
+    background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
+    padding: 0;
+    margin: 0;
+}
+
+button.text {
+    background: none !important;
+    border: none;
+    padding: 0 !important;
+    /*optional*/
+    font-family: arial, sans-serif;
+    /*input has OS specific font-family*/
+    color: #069;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+header {
+    background-color: rgba(255, 255, 255, 0.99);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5em;
+    height: 90px;
+    margin-bottom: 20px;
+}
+
+header h1.logo {
+    padding: 0;
+    margin: 0;
+}
+
+nav {
+    background-color: rgba(255, 255, 255, 0.99);
+}
+
+nav.logged-out a {
+    margin-left: 1em;
+}
+
+main {
+    background-color: rgba(255, 255, 255, 0.99);
+    padding: 1.5em;
+    height: calc(100vh - 130px);
+    box-sizing: border-box;
+}
 
 .hidden {
     display: none;
+}
+
+.small {
+    font-size: .5em;
+}
+
+form {
+    margin: auto;
+    width: 500px;
+    box-sizing: border-box;
+    border: 1px solid #cfcfcf;
+    padding: 1em;
+}
+
+form label {
+    display: block;
+    font-size: .75em;
+    margin-bottom: .25em;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+form label::first-letter {
+    font-size: 1.5em;
+}
+
+form input {
+    margin-bottom: 1em;
+    box-sizing: border-box;
+    width: 100%;
+    border: 1px solid grey;
+    padding: .5em;
+}
+
+form input[type=submit] {
+    margin-bottom: .5em;
+}
+
+div.screenshots-container {
+    background-color: white;
+}
+
+div.screenshots-row {
+    display: flex;
+}
+
+a.screenshot-image {
+    display: block;
+    width: 33.3333%;
+    padding-top: 25%;
+    margin-bottom: 1em;
+    overflow: hidden;
+    height: 0;
+
+    background-size: cover;
+    background-position: top center;
+
+    position: relative;
+}
+
+div.screenshot-link {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    background-color: rgba(255, 255, 255, 0.9);
+}
+
+a.screenshot-image:hover div.screenshot-link {
+    display: flex;
 }
