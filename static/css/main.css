@@ -1,7 +1,14 @@
+:root {
+    --bg-transparency: 0.75;
+}
+
+html, body {
+    font-family: 'Roboto', sans-serif;
+}
+
 body {
     min-height: 100vh;
     background-color: #ffffff;
-    opacity: 0.8;
     background-image: linear-gradient(#f1f1f1 2px, transparent 2px), linear-gradient(90deg, #f1f1f1 2px, transparent 2px), linear-gradient(#f1f1f1 1px, transparent 1px), linear-gradient(90deg, #f1f1f1 1px, #ffffff 1px);
     background-size: 50px 50px, 50px 50px, 10px 10px, 10px 10px;
     background-position: -2px -2px, -2px -2px, -1px -1px, -1px -1px;
@@ -22,7 +29,7 @@ button.text {
 }
 
 header {
-    background-color: rgba(255, 255, 255, 0.99);
+    background-color: rgba(255, 255, 255, var(--bg-transparency));
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -32,12 +39,25 @@ header {
 }
 
 header h1.logo {
+    font-family: 'Notable', sans-serif;
+    position: relative;
+    top: -0.25em;
     padding: 0;
     margin: 0;
 }
 
-nav {
-    background-color: rgba(255, 255, 255, 0.99);
+header h1.logo a {
+    text-decoration: none;
+    color: black;
+}
+
+h1.logo span {
+    display: inline-block;
+    font-size: 1em;
+}
+
+h1.logo span::first-letter, h1.logo span::first-letter {
+    font-size: 1.25em;
 }
 
 nav.logged-out a {
@@ -45,9 +65,10 @@ nav.logged-out a {
 }
 
 main {
-    background-color: rgba(255, 255, 255, 0.99);
+    background-color: rgba(255, 255, 255, var(--bg-transparency));
     padding: 1.5em;
-    height: calc(100vh - 130px);
+    margin-bottom: 1.5em;
+    min-height: calc(100vh - 130px);
     box-sizing: border-box;
 }
 
@@ -91,16 +112,16 @@ form input[type=submit] {
     margin-bottom: .5em;
 }
 
-div.screenshots-container {
-    background-color: white;
-}
+/*div.screenshots-container {*/
+/*    background-color: white;*/
+/*}*/
 
 div.screenshots-row {
     display: flex;
+    gap: .5em;
 }
 
-a.screenshot-image {
-    display: block;
+div.screenshot-image {
     width: 33.3333%;
     padding-top: 25%;
     margin-bottom: 1em;
@@ -113,18 +134,35 @@ a.screenshot-image {
     position: relative;
 }
 
-div.screenshot-link {
-    display: none;
-    align-items: center;
-    justify-content: center;
+a.screenshot-link {
+    display: block;
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
     left: 0;
+}
+
+div.screenshot-link {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+div.screenshot-link a {
+    display: none;
+}
+
+div.screenshot-link:hover {
     background-color: rgba(255, 255, 255, 0.9);
 }
 
-a.screenshot-image:hover div.screenshot-link {
-    display: flex;
+div.screenshot-link:hover a {
+    display: inline;
 }

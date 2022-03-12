@@ -25,16 +25,23 @@
                 <input type="submit" name="Submit Link"/>
             </div>
         </form>
-        <h2>Your links <button id="add-a-link" class="text small">Add a link</button></h2>
+        <h2>Your links
+            <button id="add-a-link" class="text small">Add a link</button>
+        </h2>
         <div class="screenshots-container">
             <div class="screenshots-row">
                 {{range $i, $link := .Links}}
-                <a class="screenshot-image" style="background-image: url({{$link.ScreenshotUrl}});"
-                   href="{{$link.Url}}" target="_blank">
+
+                <div class="screenshot-image"
+                     style="background-image: url({{if $link.ScreenshotUrl}}{{$link.ScreenshotUrl}}{{else}}/static/img/loading.png{{end}});">
                     <div class="screenshot-link">
-                        <div>{{$link.Url}}</div>
+                        <a href="{{$link.Url}}" target="_blank">{{$link.Url}}</a>
                     </div>
-                </a>
+                    <div class="screenshot-link-controls">
+                        <button data-link-id="{{$link.Id}}" class="refresh-link text">Refresh</button>
+                        <button data-link-id="{{$link.Id}}" class="edit-link text">Edit</button>
+                    </div>
+                </div>
                 {{if mod $i 3}}
             </div>
             <div class="screenshots-row">
