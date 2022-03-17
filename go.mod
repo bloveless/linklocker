@@ -9,6 +9,7 @@ require (
 	github.com/golangcollege/sessions v1.2.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/csrf v1.7.1
+	github.com/joho/godotenv v1.4.0
 	github.com/mattn/go-sqlite3 v1.14.12
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 )
