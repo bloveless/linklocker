@@ -5,6 +5,7 @@
 {{define "main"}}
     <h2>Sign Up</h2>
     <form method="post" action="/sign-up">
+        {{ .CSRFTag }}
         <div>
             <label for="sign-up-name">Name</label>
             {{with .FormErrors.name}}

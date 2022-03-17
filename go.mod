@@ -8,6 +8,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.15.1
 	github.com/golangcollege/sessions v1.2.0
 	github.com/google/uuid v1.3.0
+	github.com/gorilla/csrf v1.7.1
 	github.com/infobip/infobip-api-go-client/v2 v2.0.0
 	github.com/mattn/go-sqlite3 v1.14.12
 	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
@@ -19,7 +20,6 @@ require (
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.1.0 // indirect
-	github.com/gorilla/csrf v1.7.1 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
