@@ -7,9 +7,15 @@ import (
 	"os"
 
 	"github.com/chromedp/chromedp"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Unable to load .env file. Proceeding without it")
+	}
+
 	chromeUrl := os.Getenv("CHROME_URL")
 
 	var chromeCtx context.Context

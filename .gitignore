@@ -3,6 +3,7 @@ linklocker.sqlite
 static/screenshots/*
 !static/screenshots/.keep
 .DS_Store
+.env
 
 # Binaries for programs and plugins
 *.exe
