@@ -80,6 +80,10 @@ main {
     font-size: .5em;
 }
 
+.intro {
+    margin: 1em 0;
+}
+
 form {
     margin: auto;
     width: 500px;
@@ -111,10 +115,6 @@ form input {
 form input[type=submit] {
     margin-bottom: .5em;
 }
-
-/*div.screenshots-container {*/
-/*    background-color: white;*/
-/*}*/
 
 div.screenshots-row {
     display: flex;

@@ -5,7 +5,7 @@
 {{define "main"}}
     {{if .Authenticated}}
         <form id="add-a-link-form" class="hidden" method="post" action="/link">
-            {{ .CSRFTag }}
+            {{.CSRFTag}}
             <div>
                 <label for="create-link-url">URL</label>
                 {{with .FormErrors.url}}

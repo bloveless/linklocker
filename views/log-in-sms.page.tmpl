@@ -4,14 +4,15 @@
 
 {{define "main"}}
     <h2>Multi Factor Login</h2>
-    <div>An MFA code has been sent to the phone number associated with your account. Please enter it below in order to complete your login</div>
+    <div class="intro">A token has been sent to the phone number associated with your account. Please enter it below in order to complete your login</div>
     <form method="post" action="/log-in/sms">
+        {{.CSRFTag}}
         <div>
-            <label for="log-in-mfa-token">MFA Token</label>
-            {{with .FormErrors.mfa_token}}
+            <label for="log-in-token">Token</label>
+            {{with .FormErrors.token}}
                 <label class="error">{{.}}</label>
             {{end}}
-            <input id="log-in-mfa-token" required type="text" name="mfa_token" value="{{.FormData.Get "mfa_token"}}"/>
+            <input id="log-in-token" required type="text" name="token" value="{{.FormData.Get "token"}}"/>
         </div>
         <div>
             <input type="submit" value="Log in"/>

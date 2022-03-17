@@ -313,7 +313,7 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mfaToken := generateMfaToken(6)
+	token := generateMfaToken(6)
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
 
 	// Now the user has provided their correct username and password so we can send their MFA code via sms
@@ -322,8 +322,16 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 		"INSERT INTO two_factor_token (id, user_id, token, expires_at_utc) VALUES (?, ?, ?, ?)",
 		uuid.New().String(),
 		s.session.GetString(r, "user_id"),
-		mfaToken,
+		token,
 		expiresAt.Format("2006-01-02 15:04:05"))
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	var phoneNumber string
+	err = s.db.QueryRow("SELECT phone_number FROM user WHERE id = ?", s.session.GetString(r, "user_id")).Scan(&phoneNumber)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -332,10 +340,10 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 
 	auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
 	request := infobip.NewSmsAdvancedTextualRequest()
-	destination := infobip.NewSmsDestination("18018985067")
+	destination := infobip.NewSmsDestination(phoneNumber)
 
 	from := "LinkLocker"
-	text := "Your requested MFA token for LinkLocker is: " + mfaToken
+	text := "Your requested token for LinkLocker is: " + token
 	message := infobip.NewSmsTextualMessage()
 	message.From = &from
 	message.Destinations = &[]infobip.SmsDestination{*destination}
@@ -358,6 +366,7 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 				fmt.Println(ibErr.RequestError.ServiceException.GetText())
 			}
 		}
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
@@ -387,12 +396,12 @@ func (s server) logInSms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	mfaToken := r.Form.Get("mfa_token")
+	token := r.Form.Get("token")
 
 	formErrors := make(map[string]string)
 
-	if strings.TrimSpace(mfaToken) == "" {
-		formErrors["email"] = "MFA Token is required"
+	if strings.TrimSpace(token) == "" {
+		formErrors["token"] = "Token is required"
 	}
 
 	if len(formErrors) > 0 {
@@ -404,7 +413,7 @@ func (s server) logInSms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var exists bool
-	err = s.db.QueryRow("SELECT exists (SELECT user_id FROM two_factor_token WHERE user_id = ? AND token = ? AND revoked = 0 AND expires_at_utc >= datetime('now'));", s.session.GetString(r, "user_id"), mfaToken).Scan(&exists)
+	err = s.db.QueryRow("SELECT exists (SELECT user_id FROM two_factor_token WHERE user_id = ? AND token = ? AND revoked = 0 AND expires_at_utc >= datetime('now'));", s.session.GetString(r, "user_id"), token).Scan(&exists)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
