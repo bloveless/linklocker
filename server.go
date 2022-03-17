@@ -67,7 +67,7 @@ func newServer(chromeCtx context.Context) server {
 	screenshotRequests := make(chan screenshotRequest)
 
 	configuration := infobip.NewConfiguration()
-	configuration.Host = "pw44yv.api.infobip.com"
+	configuration.Host = os.Getenv("INFOBIP_HOST")
 
 	infobipClient := infobip.NewAPIClient(configuration)
 
@@ -77,6 +77,6 @@ func newServer(chromeCtx context.Context) server {
 		screenshotRequests: screenshotRequests,
 		chromeDpContext:    chromeCtx,
 		infobipClient:      infobipClient,
-		infobipApiKey:      "9636fd1b5e74bad50c4814a9359fbdae-367e093b-436a-4d96-90b8-caa4bb27a523",
+		infobipApiKey:      os.Getenv("INFOBIP_API_KEY"),
 	}
 }
