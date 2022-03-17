@@ -5,6 +5,7 @@
 {{define "main"}}
     {{if .Authenticated}}
         <form id="add-a-link-form" class="hidden" method="post" action="/link">
+            {{ .CSRFTag }}
             <div>
                 <label for="create-link-url">URL</label>
                 {{with .FormErrors.url}}
@@ -30,7 +31,7 @@
         </h2>
         <div class="screenshots-container">
             <div class="screenshots-row">
-                {{range $i, $link := .Links}}
+            {{range $i, $link := .Links}}
 
                 <div class="screenshot-image"
                      style="background-image: url({{if $link.ScreenshotUrl}}{{$link.ScreenshotUrl}}{{else}}/static/img/loading.png{{end}});">
@@ -43,13 +44,10 @@
                     </div>
                 </div>
                 {{if mod $i 3}}
-            </div>
-            <div class="screenshots-row">
+                    </div>
+                    <div class="screenshots-row">
                 {{end}}
-                {{/*            URL: {{.Url}}*/}}
-                {{/*            Display URL: {{.DisplayUrl}}*/}}
-                {{/*            Screenshot URL: {{ .ScreenshotUrl}}*/}}
-                {{end}}
+            {{end}}
             </div>
         </div>
     {{ else }}

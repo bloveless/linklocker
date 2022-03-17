@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/csrf"
 )
 
 type user struct {
@@ -36,6 +37,7 @@ type templateData struct {
 	Links         []link
 	FormData      url.Values
 	FormErrors    map[string]string
+	CSRFTag       template.HTML
 }
 
 func (s server) home(w http.ResponseWriter, r *http.Request) {
@@ -295,6 +297,7 @@ func (s server) logOut(w http.ResponseWriter, r *http.Request) {
 func (s server) addDefaultData(w http.ResponseWriter, r *http.Request, td *templateData) error {
 	td.Authenticated = false
 	td.User = nil
+	td.CSRFTag = csrf.TemplateField(r)
 
 	if s.session.Exists(r, "user_id") && s.session.GetBool(r, "authenticated") {
 		userUuid := s.session.GetString(r, "user_id")

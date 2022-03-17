@@ -2,20 +2,25 @@ package main
 
 import (
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/gorilla/csrf"
 )
 
 func (s server) getRouter() *chi.Mux {
 	r := chi.NewRouter()
+
+	csrfMiddleware := csrf.Protect([]byte(os.Getenv("CSRF_SECRET")))
 
 	// A good base middleware stack
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(csrfMiddleware)
 
 	// Set a timeout value on the request context (ctx), that will signal
 	// through ctx.Done() that the request has timed out and further
@@ -33,6 +38,8 @@ func (s server) getRouter() *chi.Mux {
 		r.Post("/sign-up", s.signUp)
 		r.Get("/log-in", s.logInForm)
 		r.Post("/log-in", s.logIn)
+		// r.Get("/log-in/sms", s.logInSmsForm)
+		// r.Post("/log-in/sms", s.logInSms)
 		r.Get("/log-out", s.logOut)
 	})
 
