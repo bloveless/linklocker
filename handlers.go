@@ -200,7 +200,7 @@ func (s server) signUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.session.Put(r, "authenticated", true)
+	s.session.Put(r, "authenticated", false)
 	s.session.Put(r, "user_id", userUuid)
 	if err != nil {
 		log.Println(err)
@@ -208,7 +208,7 @@ func (s server) signUp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/", http.StatusFound)
+	http.Redirect(w, r, "/log-in/sms", http.StatusFound)
 }
 
 func (s server) logInForm(w http.ResponseWriter, r *http.Request) {
