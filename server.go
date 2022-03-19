@@ -10,6 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golangcollege/sessions"
+	"github.com/infobip/infobip-api-go-client/v2"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -24,6 +25,8 @@ type server struct {
 	session            *sessions.Session
 	screenshotRequests chan screenshotRequest
 	chromeDpContext    context.Context
+	infobipClient      *infobip.APIClient
+	infobipApiKey      string
 }
 
 func newServer(chromeCtx context.Context) server {
@@ -63,10 +66,17 @@ func newServer(chromeCtx context.Context) server {
 
 	screenshotRequests := make(chan screenshotRequest)
 
+	configuration := infobip.NewConfiguration()
+	configuration.Host = os.Getenv("INFOBIP_HOST")
+
+	infobipClient := infobip.NewAPIClient(configuration)
+
 	return server{
 		db:                 db,
 		session:            session,
 		screenshotRequests: screenshotRequests,
 		chromeDpContext:    chromeCtx,
+		infobipClient:      infobipClient,
+		infobipApiKey:      os.Getenv("INFOBIP_API_KEY"),
 	}
 }
