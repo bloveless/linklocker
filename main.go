@@ -22,7 +22,7 @@ func main() {
 	if chromeUrl != "" {
 		log.Println("Starting to get screenshot")
 		// create context
-		allocatorContext, allocatorCancel := chromedp.NewRemoteAllocator(context.Background(), "ws://127.0.0.1:9222/")
+		allocatorContext, allocatorCancel := chromedp.NewRemoteAllocator(context.Background(), chromeUrl)
 		defer allocatorCancel()
 
 		currentContext, cancel := chromedp.NewContext(allocatorContext)
