@@ -202,11 +202,6 @@ func (s server) signUp(w http.ResponseWriter, r *http.Request) {
 
 	s.session.Put(r, "authenticated", false)
 	s.session.Put(r, "user_id", userUuid)
-	if err != nil {
-		log.Println(err)
-		http.Error(w, "Internal Server Error", 500)
-		return
-	}
 
 	http.Redirect(w, r, "/log-in/sms", http.StatusFound)
 }
