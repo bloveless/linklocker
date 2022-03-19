@@ -273,11 +273,6 @@ func (s server) logIn(w http.ResponseWriter, r *http.Request) {
 	if match {
 		s.session.Put(r, "authenticated", false)
 		s.session.Put(r, "user_id", u.Id.String())
-		if err != nil {
-			log.Println(err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
 
 		http.Redirect(w, r, "/log-in/sms", http.StatusFound)
 	} else {
