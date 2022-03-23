@@ -25,6 +25,7 @@ type server struct {
 	session            *sessions.Session
 	screenshotRequests chan screenshotRequest
 	chromeDpContext    context.Context
+	enableMfa          bool
 	infobipClient      *infobip.APIClient
 	infobipHost        string
 	infobipApiKey      string
@@ -67,12 +68,19 @@ func newServer(chromeCtx context.Context) server {
 
 	screenshotRequests := make(chan screenshotRequest)
 
-	infobipHost := os.Getenv("INFOBIP_HOST")
+	enableMfa := os.Getenv("ENABLE_MFA") == "true"
 
-	configuration := infobip.NewConfiguration()
-	configuration.Host = infobipHost
+	infobipHost := ""
+	var infobipClient *infobip.APIClient
 
-	infobipClient := infobip.NewAPIClient(configuration)
+	if enableMfa {
+		infobipHost = os.Getenv("INFOBIP_HOST")
+
+		configuration := infobip.NewConfiguration()
+		configuration.Host = infobipHost
+
+		infobipClient = infobip.NewAPIClient(configuration)
+	}
 
 	return server{
 		db:                 db,
@@ -80,6 +88,7 @@ func newServer(chromeCtx context.Context) server {
 		screenshotRequests: screenshotRequests,
 		chromeDpContext:    chromeCtx,
 		infobipClient:      infobipClient,
+		enableMfa:          enableMfa,
 		infobipHost:        "https://" + infobipHost,
 		infobipApiKey:      os.Getenv("INFOBIP_API_KEY"),
 	}

@@ -273,16 +273,27 @@ func (s server) logIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if match {
+	// If MFA is enabled then we don't authenticate the session yet and we redirect the user to the MFA flow
+	if match && s.enableMfa {
 		s.session.Put(r, "authenticated", false)
 		s.session.Put(r, "user_id", u.Id.String())
 
 		http.Redirect(w, r, "/log-in/choose-mfa", http.StatusFound)
-	} else {
-		if _, err = w.Write([]byte("Invalid user")); err != nil {
-			log.Println(err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
+		return
+	}
+
+	// If MFA is not enabled then we immediately authenticate the session and send the user to the app
+	if match && !s.enableMfa {
+		s.session.Put(r, "authenticated", true)
+		s.session.Put(r, "user_id", u.Id.String())
+
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	if _, err = w.Write([]byte("Invalid user")); err != nil {
+		log.Println(err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 	}
 }
 
