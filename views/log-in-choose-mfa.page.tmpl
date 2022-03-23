@@ -1,0 +1,27 @@
+{{template "base" .}}
+
+{{define "title"}}Home{{end}}
+
+{{define "main"}}
+    <h2>Multi Factor Login</h2>
+    <div class="intro">How would you like to receive your login token?</div>
+    <form method="post" action="/log-in/choose-mfa">
+        {{.CSRFTag}}
+        <div>
+            <label class="fancy" for="log-in-token-method">Token Method</label>
+            <span class="help">Token will be sent to {{.PageData.MaskedPhoneNumber}}</span>
+            {{with .FormErrors.token_method}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <label class="radio">
+                <input id="log-in-token-method" type="radio" name="token_method" value="sms"> Text message
+            </label>
+            <label>
+                <input type="radio" name="token_method" value="phone"> Phone call
+            </label>
+        </div>
+        <div>
+            <input type="submit" value="Send token"/>
+        </div>
+    </form>
+{{end}}

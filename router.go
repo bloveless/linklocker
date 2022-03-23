@@ -38,8 +38,10 @@ func (s server) getRouter() *chi.Mux {
 		r.Post("/sign-up", s.signUp)
 		r.Get("/log-in", s.logInForm)
 		r.Post("/log-in", s.logIn)
-		r.Get("/log-in/sms", s.logInSmsForm)
-		r.Post("/log-in/sms", s.logInSms)
+		r.Get("/log-in/choose-mfa", s.logInChooseMfaForm)
+		r.Post("/log-in/choose-mfa", s.logInChooseMfa)
+		r.Get("/log-in/mfa", s.logInMfaForm)
+		r.Post("/log-in/mfa", s.logInMfa)
 		r.Get("/log-out", s.logOut)
 	})
 

@@ -5,14 +5,14 @@
 {{define "main"}}
     <h2>Multi Factor Login</h2>
     <div class="intro">A token has been sent to the phone number associated with your account. Please enter it below in order to complete your login</div>
-    <form method="post" action="/log-in/sms">
+    <form method="post" action="/log-in/mfa">
         {{.CSRFTag}}
         <div>
-            <label for="log-in-token">Token</label>
+            <label class="fancy" for="log-in-token">Token</label>
             {{with .FormErrors.token}}
                 <label class="error">{{.}}</label>
             {{end}}
-            <input id="log-in-token" required type="text" name="token" value="{{.FormData.Get "token"}}"/>
+            <input class="fancy" id="log-in-token" required type="text" name="token" value="{{.FormData.Get "token"}}"/>
         </div>
         <div>
             <input type="submit" value="Log in"/>

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -19,11 +20,12 @@ import (
 )
 
 type user struct {
-	Id          uuid.UUID
-	Email       string
-	password    string
-	Name        string
-	PhoneNumber string
+	Id                uuid.UUID
+	Email             string
+	password          string
+	Name              string
+	PhoneNumber       string
+	MaskedPhoneNumber string
 }
 
 type link struct {
@@ -42,6 +44,7 @@ type templateData struct {
 	FormData      url.Values
 	FormErrors    map[string]string
 	CSRFTag       template.HTML
+	PageData      map[string]interface{}
 }
 
 func (s server) home(w http.ResponseWriter, r *http.Request) {
@@ -274,7 +277,7 @@ func (s server) logIn(w http.ResponseWriter, r *http.Request) {
 		s.session.Put(r, "authenticated", false)
 		s.session.Put(r, "user_id", u.Id.String())
 
-		http.Redirect(w, r, "/log-in/sms", http.StatusFound)
+		http.Redirect(w, r, "/log-in/choose-mfa", http.StatusFound)
 	} else {
 		if _, err = w.Write([]byte("Invalid user")); err != nil {
 			log.Println(err)
@@ -283,7 +286,7 @@ func (s server) logIn(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
+func (s server) logInChooseMfaForm(w http.ResponseWriter, r *http.Request) {
 	// If there is no user_id then the user hasn't successfully provided their username and password
 	if !s.session.Exists(r, "user_id") {
 		http.Redirect(w, r, "/log-in", http.StatusFound)
@@ -296,7 +299,98 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := s.db.Exec("UPDATE two_factor_token SET revoked = 1 WHERE user_id = ?", s.session.GetString(r, "user_id"))
+	var maskedPhoneNumber string
+
+	// If the user session is unauthenticated then we will only populate the users id and phone number
+	if s.session.Exists(r, "user_id") && !s.session.GetBool(r, "authenticated") {
+		userUuid := s.session.GetString(r, "user_id")
+		var u user
+		err := s.db.QueryRow("SELECT id, phone_number FROM user WHERE id = ?", userUuid).Scan(
+			&u.Id,
+			&u.PhoneNumber,
+		)
+
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		maskedPhoneNumber = "XXX-XXX-" + u.PhoneNumber[len(u.PhoneNumber)-4:]
+	}
+
+	td := templateData{
+		PageData: map[string]interface{}{
+			"MaskedPhoneNumber": maskedPhoneNumber,
+		},
+	}
+
+	s.render(w, r, "log-in-choose-mfa.page.tmpl", &td)
+}
+
+func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
+	// If there is no user_id then the user hasn't successfully provided their username and password
+	if !s.session.Exists(r, "user_id") {
+		http.Redirect(w, r, "/log-in", http.StatusFound)
+		return
+	}
+
+	// If the user is already authenticated then they have already completed their multi-factor login
+	if s.session.GetBool(r, "authenticated") {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	err := r.ParseForm()
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	tokenMethod := r.Form.Get("token_method")
+
+	formErrors := make(map[string]string)
+
+	if strings.TrimSpace(tokenMethod) == "" {
+		formErrors["token_method"] = "Token method is required"
+	}
+
+	if tokenMethod != "phone" && tokenMethod != "sms" {
+		formErrors["token_method"] = "Token method must be either phone or sms"
+	}
+
+	userUuid := s.session.GetString(r, "user_id")
+	var u user
+	err = s.db.QueryRow("SELECT id, phone_number FROM user WHERE id = ?", userUuid).Scan(
+		&u.Id,
+		&u.PhoneNumber,
+	)
+
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	if len(formErrors) > 0 {
+		maskedPhoneNumber := "XXX-XXX-" + u.PhoneNumber[len(u.PhoneNumber)-4:]
+
+		td := templateData{
+			PageData: map[string]interface{}{
+				"MaskedPhoneNumber": maskedPhoneNumber,
+			},
+		}
+
+		td.FormData = r.PostForm
+		td.FormErrors = formErrors
+
+		s.render(w, r, "log-in-choose-mfa.page.tmpl", &td)
+		return
+	}
+
+	// Now we have the token method as well as the users phone number so we can send the token to the user
+	_, err = s.db.Exec("UPDATE two_factor_token SET revoked = 1 WHERE user_id = ?", u.Id)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -311,7 +405,7 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 	_, err = s.db.Exec(
 		"INSERT INTO two_factor_token (id, user_id, token, expires_at_utc) VALUES (?, ?, ?, ?)",
 		uuid.New().String(),
-		s.session.GetString(r, "user_id"),
+		u.Id,
 		token,
 		expiresAt.Format("2006-01-02 15:04:05"))
 	if err != nil {
@@ -320,53 +414,115 @@ func (s server) logInSmsForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var phoneNumber string
-	err = s.db.QueryRow("SELECT phone_number FROM user WHERE id = ?", s.session.GetString(r, "user_id")).Scan(&phoneNumber)
-	if err != nil {
-		log.Println(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	if tokenMethod == "sms" {
+		auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
+		request := infobip.NewSmsAdvancedTextualRequest()
+		destination := infobip.NewSmsDestination(u.PhoneNumber)
 
-	auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
-	request := infobip.NewSmsAdvancedTextualRequest()
-	destination := infobip.NewSmsDestination(phoneNumber)
+		from := "LinkLocker"
+		text := "Your requested token for LinkLocker is: " + token
+		message := infobip.NewSmsTextualMessage()
+		message.From = &from
+		message.Destinations = &[]infobip.SmsDestination{*destination}
+		message.Text = &text
 
-	from := "LinkLocker"
-	text := "Your requested token for LinkLocker is: " + token
-	message := infobip.NewSmsTextualMessage()
-	message.From = &from
-	message.Destinations = &[]infobip.SmsDestination{*destination}
-	message.Text = &text
+		request.Messages = &[]infobip.SmsTextualMessage{*message}
 
-	request.Messages = &[]infobip.SmsTextualMessage{*message}
+		_, httpResponse, err := s.infobipClient.
+			SendSmsApi.
+			SendSmsMessage(auth).
+			SmsAdvancedTextualRequest(*request).
+			Execute()
 
-	_, httpResponse, err := s.infobipClient.
-		SendSmsApi.
-		SendSmsMessage(auth).
-		SmsAdvancedTextualRequest(*request).
-		Execute()
-
-	if err != nil {
-		apiErr, isApiErr := err.(infobip.GenericOpenAPIError)
-		if isApiErr {
-			ibErr, isIbErr := apiErr.Model().(infobip.SmsApiException)
-			if isIbErr {
-				fmt.Println(ibErr.RequestError.ServiceException.GetMessageId())
-				fmt.Println(ibErr.RequestError.ServiceException.GetText())
+		if err != nil {
+			apiErr, isApiErr := err.(infobip.GenericOpenAPIError)
+			if isApiErr {
+				ibErr, isIbErr := apiErr.Model().(infobip.SmsApiException)
+				if isIbErr {
+					fmt.Println(ibErr.RequestError.ServiceException.GetMessageId())
+					fmt.Println(ibErr.RequestError.ServiceException.GetText())
+				}
 			}
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
 		}
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
+
+		log.Printf("httpResponse.StatusCode: %v\n", httpResponse.StatusCode)
+		log.Printf("httpResponse.Body: %v\n", httpResponse.Body)
 	}
 
-	log.Printf("httpResponse.StatusCode: %v\n", httpResponse.StatusCode)
-	log.Printf("httpResponse.Body: %v\n", httpResponse.Body)
+	if tokenMethod == "phone" {
+		// The token needs to have spaces between each number so the numbers are read one by one rather than as one
+		// whole number
+		message := "Your requested token for LinkLocker is " + strings.Join(strings.Split(token, ""), " ") + ". Please press 5 to repeat."
+		payload := strings.NewReader(fmt.Sprintf(`{
+			"bulkId": "%s",
+			"messages": [{
+				"text":"%s",
+				"language":"en",
+				"voice":{
+					"name":"Joanna",
+					"gender":"female"
+				},
+				"repeatDtmf": "5",
+				"maxDtmf": 1,
+				"dtmfTimeout": 5,
+				"from":"442032864231",
+				"destinations": [{
+					"to":"%s"
+				}]
+			}]
+		}`, uuid.New().String(), message, u.PhoneNumber))
 
-	s.render(w, r, "log-in-sms.page.tmpl", nil)
+		client := &http.Client{
+			Timeout: 30 * time.Second,
+		}
+		req, err := http.NewRequest("POST", s.infobipHost+"/tts/3/advanced", payload)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		req.Header.Add("Authorization", "App "+s.infobipApiKey)
+		req.Header.Add("Content-Type", "application/json")
+		req.Header.Add("Accept", "application/json")
+
+		res, err := client.Do(req)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer res.Body.Close()
+
+		body, err := ioutil.ReadAll(res.Body)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(string(body))
+	}
+
+	http.Redirect(w, r, "/log-in/mfa", http.StatusFound)
 }
 
-func (s server) logInSms(w http.ResponseWriter, r *http.Request) {
+func (s server) logInMfaForm(w http.ResponseWriter, r *http.Request) {
+	// If there is no user_id then the user hasn't successfully provided their username and password
+	if !s.session.Exists(r, "user_id") {
+		http.Redirect(w, r, "/log-in", http.StatusFound)
+		return
+	}
+
+	// If the user is already authenticated then they have already completed their multi-factor login
+	if s.session.GetBool(r, "authenticated") {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+
+	s.render(w, r, "log-in-mfa.page.tmpl", nil)
+}
+
+func (s server) logInMfa(w http.ResponseWriter, r *http.Request) {
 	// If there is no user_id then the user hasn't successfully provided their username and password
 	if !s.session.Exists(r, "user_id") {
 		http.Redirect(w, r, "/log-in", http.StatusFound)
@@ -395,7 +551,7 @@ func (s server) logInSms(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(formErrors) > 0 {
-		s.render(w, r, "log-in-sms.page.tmpl", &templateData{
+		s.render(w, r, "log-in-mfa.page.tmpl", &templateData{
 			FormData:   r.PostForm,
 			FormErrors: formErrors,
 		})

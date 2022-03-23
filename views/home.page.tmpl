@@ -7,14 +7,14 @@
         <form id="add-a-link-form" class="hidden" method="post" action="/link">
             {{.CSRFTag}}
             <div>
-                <label for="create-link-url">URL</label>
+                <label class="fancy" for="create-link-url">URL</label>
                 {{with .FormErrors.url}}
                     <label class="error">{{.}}</label>
                 {{end}}
                 <input id="create-link-url" required type="url" name="url" value="{{.FormData.Get "url"}}"/>
             </div>
             <div>
-                <label for="create-link-display-url">Display URL</label>
+                <label class="fancy" for="create-link-display-url">Display URL</label>
                 <span>(if you'd like the screenshot to show a different URL than the link)</span>
                 {{with .FormErrors.display_url}}
                     <label class="error">{{.}}</label>

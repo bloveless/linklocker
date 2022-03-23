@@ -26,6 +26,7 @@ type server struct {
 	screenshotRequests chan screenshotRequest
 	chromeDpContext    context.Context
 	infobipClient      *infobip.APIClient
+	infobipHost        string
 	infobipApiKey      string
 }
 
@@ -66,8 +67,10 @@ func newServer(chromeCtx context.Context) server {
 
 	screenshotRequests := make(chan screenshotRequest)
 
+	infobipHost := os.Getenv("INFOBIP_HOST")
+
 	configuration := infobip.NewConfiguration()
-	configuration.Host = os.Getenv("INFOBIP_HOST")
+	configuration.Host = infobipHost
 
 	infobipClient := infobip.NewAPIClient(configuration)
 
@@ -77,6 +80,7 @@ func newServer(chromeCtx context.Context) server {
 		screenshotRequests: screenshotRequests,
 		chromeDpContext:    chromeCtx,
 		infobipClient:      infobipClient,
+		infobipHost:        "https://" + infobipHost,
 		infobipApiKey:      os.Getenv("INFOBIP_API_KEY"),
 	}
 }

@@ -92,7 +92,7 @@ form {
     padding: 1em;
 }
 
-form label {
+form label.fancy {
     display: block;
     font-size: .75em;
     margin-bottom: .25em;
@@ -100,8 +100,26 @@ form label {
     letter-spacing: .05em;
 }
 
-form label::first-letter {
+form label.fancy::first-letter {
     font-size: 1.5em;
+}
+
+form label.error {
+    display: block;
+    font-size: .75em;
+    margin-bottom: .25em;
+    color: #d27467;
+}
+
+form label.radio {
+    display: block;
+}
+
+form span.help {
+    display: inline-block;
+    color: rgb(121, 121, 121);
+    font-size: .75em;
+    margin-bottom: .75em;
 }
 
 form input {
@@ -110,6 +128,10 @@ form input {
     width: 100%;
     border: 1px solid grey;
     padding: .5em;
+}
+
+form input[type=radio] {
+    width: auto;
 }
 
 form input[type=submit] {
