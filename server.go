@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"time"
 
@@ -29,6 +30,8 @@ type server struct {
 	infobipClient      *infobip.APIClient
 	infobipHost        string
 	infobipApiKey      string
+	infobipAppId       string
+	infobipMessageId   string
 }
 
 func newServer(chromeCtx context.Context) server {
@@ -71,6 +74,10 @@ func newServer(chromeCtx context.Context) server {
 	enableMfa := os.Getenv("ENABLE_MFA") == "true"
 
 	infobipHost := ""
+	infobipApiKey := ""
+	infobipAppId := ""
+	infobipMessageId := ""
+
 	var infobipClient *infobip.APIClient
 
 	if enableMfa {
@@ -80,6 +87,46 @@ func newServer(chromeCtx context.Context) server {
 		configuration.Host = infobipHost
 
 		infobipClient = infobip.NewAPIClient(configuration)
+		infobipApiKey = os.Getenv("INFOBIP_API_KEY")
+
+		auth := context.WithValue(context.Background(), infobip.ContextAPIKey, infobipApiKey)
+
+		newApplicationRequest := infobip.NewTfaApplicationRequest("LinkLocker")
+		newApplicationResponse, newApplicationHttpResponse, err := infobipClient.
+			TfaApi.
+			CreateTfaApplication(auth).
+			TfaApplicationRequest(*newApplicationRequest).
+			Execute()
+
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("New Application Response %+v", newApplicationResponse)
+		fmt.Printf("New Application Http Response %+v", newApplicationHttpResponse)
+
+		pinLength := int32(6)
+		repeatCode := "5"
+
+		createMessageRequest := infobip.NewTfaCreateMessageRequest("Your requested token for LinkLocker is {{pin}}", infobip.TFAPINTYPE_ALPHANUMERIC)
+		createMessageRequest.PinLength = &pinLength
+		createMessageRequest.RepeatDTMF = &repeatCode
+
+		createMessageResponse, createMessageHttpResponse, err := infobipClient.
+			TfaApi.
+			CreateTfaMessageTemplate(auth, *newApplicationResponse.ApplicationId).
+			TfaCreateMessageRequest(*createMessageRequest).
+			Execute()
+
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Printf("Create Message Response %+v\n", createMessageResponse)
+		fmt.Printf("Create Message Http Response %+v\n", createMessageHttpResponse)
+
+		infobipAppId = *newApplicationResponse.ApplicationId
+		infobipMessageId = *createMessageResponse.MessageId
 	}
 
 	return server{
@@ -90,6 +137,8 @@ func newServer(chromeCtx context.Context) server {
 		infobipClient:      infobipClient,
 		enableMfa:          enableMfa,
 		infobipHost:        "https://" + infobipHost,
-		infobipApiKey:      os.Getenv("INFOBIP_API_KEY"),
+		infobipApiKey:      infobipApiKey,
+		infobipAppId:       infobipAppId,
+		infobipMessageId:   infobipMessageId,
 	}
 }

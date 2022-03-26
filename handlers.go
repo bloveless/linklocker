@@ -206,7 +206,7 @@ func (s server) signUp(w http.ResponseWriter, r *http.Request) {
 	s.session.Put(r, "authenticated", false)
 	s.session.Put(r, "user_id", userUuid)
 
-	http.Redirect(w, r, "/log-in/sms", http.StatusFound)
+	http.Redirect(w, r, "/log-in/choose-mfa", http.StatusFound)
 }
 
 func (s server) logInForm(w http.ResponseWriter, r *http.Request) {
@@ -411,55 +411,80 @@ func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
 	token := generateMfaToken(6)
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
 
-	// Now the user has provided their correct username and password so we can send their MFA code via sms
-	// and wait for them to provide it to authenticate their login
-	_, err = s.db.Exec(
-		"INSERT INTO two_factor_token (id, user_id, token, expires_at_utc) VALUES (?, ?, ?, ?)",
-		uuid.New().String(),
-		u.Id,
-		token,
-		expiresAt.Format("2006-01-02 15:04:05"))
-	if err != nil {
-		log.Println(err)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
-
 	if tokenMethod == "sms" {
 		auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
-		request := infobip.NewSmsAdvancedTextualRequest()
-		destination := infobip.NewSmsDestination(u.PhoneNumber)
 
-		from := "LinkLocker"
-		text := "Your requested token for LinkLocker is: " + token
-		message := infobip.NewSmsTextualMessage()
-		message.From = &from
-		message.Destinations = &[]infobip.SmsDestination{*destination}
-		message.Text = &text
+		from := "InfoSMS"
+		to := "18018985067"
 
-		request.Messages = &[]infobip.SmsTextualMessage{*message}
+		request := infobip.NewTfaStartAuthenticationRequest(s.infobipAppId, s.infobipMessageId, to)
+		request.From = &from
 
-		_, httpResponse, err := s.infobipClient.
-			SendSmsApi.
-			SendSmsMessage(auth).
-			SmsAdvancedTextualRequest(*request).
+		sendPinResponse, httpResponse, err := s.infobipClient.
+			TfaApi.
+			SendTfaPinCodeOverSms(auth).
+			TfaStartAuthenticationRequest(*request).
 			Execute()
 
+		fmt.Println("Send Pin Response Http Response", httpResponse)
+
 		if err != nil {
-			apiErr, isApiErr := err.(infobip.GenericOpenAPIError)
-			if isApiErr {
-				ibErr, isIbErr := apiErr.Model().(infobip.SmsApiException)
-				if isIbErr {
-					fmt.Println(ibErr.RequestError.ServiceException.GetMessageId())
-					fmt.Println(ibErr.RequestError.ServiceException.GetText())
-				}
-			}
+			log.Println(err)
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
-		log.Printf("httpResponse.StatusCode: %v\n", httpResponse.StatusCode)
-		log.Printf("httpResponse.Body: %v\n", httpResponse.Body)
+		pinId := sendPinResponse.PinId
+
+		// Now the user has provided their correct username and password so we can send their MFA code via sms
+		// and wait for them to provide it to authenticate their login
+		_, err = s.db.Exec(
+			"INSERT INTO two_factor_token (id, user_id, token_type, token, expires_at_utc) VALUES (?, ?, ?, ?, ?)",
+			uuid.New().String(),
+			u.Id,
+			"infobip_pin_id",
+			pinId,
+			expiresAt.Format("2006-01-02 15:04:05"))
+
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+
+		// request := infobip.NewSmsAdvancedTextualRequest()
+		// destination := infobip.NewSmsDestination(u.PhoneNumber)
+		//
+		// from := "LinkLocker"
+		// text := "Your requested token for LinkLocker is: " + token
+		// message := infobip.NewSmsTextualMessage()
+		// message.From = &from
+		// message.Destinations = &[]infobip.SmsDestination{*destination}
+		// message.Text = &text
+		//
+		// request.Messages = &[]infobip.SmsTextualMessage{*message}
+		//
+		// _, httpResponse, err := s.infobipClient.
+		// 	SendSmsApi.
+		// 	SendSmsMessage(auth).
+		// 	SmsAdvancedTextualRequest(*request).
+		// 	Execute()
+		//
+		// if err != nil {
+		// 	apiErr, isApiErr := err.(infobip.GenericOpenAPIError)
+		// 	if isApiErr {
+		// 		ibErr, isIbErr := apiErr.Model().(infobip.SmsApiException)
+		// 		if isIbErr {
+		// 			fmt.Println(ibErr.RequestError.ServiceException.GetMessageId())
+		// 			fmt.Println(ibErr.RequestError.ServiceException.GetText())
+		// 		}
+		// 	}
+		// 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		// 	return
+		// }
+		//
+		// log.Printf("httpResponse.StatusCode: %v\n", httpResponse.StatusCode)
+		// log.Printf("httpResponse.Body: %v\n", httpResponse.Body)
 	}
 
 	if tokenMethod == "phone" {
