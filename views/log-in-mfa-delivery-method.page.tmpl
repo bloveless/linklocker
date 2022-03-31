@@ -5,19 +5,19 @@
 {{define "main"}}
     <h2>Multi Factor Login</h2>
     <div class="intro">How would you like to receive your login token?</div>
-    <form method="post" action="/log-in/choose-mfa">
+    <form method="post" action="/log-in/mfa-delivery-method">
         {{.CSRFTag}}
         <div>
-            <label class="fancy" for="log-in-token-method">Token Method</label>
+            <label class="fancy" for="log-in-delivery-method">Delivery Method</label>
             <span class="help">Token will be sent to {{.PageData.MaskedPhoneNumber}}</span>
-            {{with .FormErrors.token_method}}
+            {{with .FormErrors.delivery_method}}
                 <label class="error">{{.}}</label>
             {{end}}
             <label class="radio">
-                <input id="log-in-token-method" type="radio" name="token_method" value="sms"> Text message
+                <input id="log-in-delivery-method" type="radio" name="delivery_method" value="sms"> Text message
             </label>
             <label>
-                <input type="radio" name="token_method" value="phone"> Phone call
+                <input type="radio" name="delivery_method" value="phone"> Phone call
             </label>
         </div>
         <div>

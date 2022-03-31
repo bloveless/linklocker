@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"time"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/golangcollege/sessions"
+	"github.com/google/uuid"
 	"github.com/infobip/infobip-api-go-client/v2"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -32,6 +32,19 @@ type server struct {
 	infobipApiKey      string
 	infobipAppId       string
 	infobipMessageId   string
+}
+
+type tfaApplication struct {
+	id                   string
+	name                 string
+	infobipApplicationId string
+}
+
+type tfaMessage struct {
+	id               string
+	applicationId    string
+	name             string
+	infobipMessageId string
 }
 
 func newServer(chromeCtx context.Context) server {
@@ -89,44 +102,117 @@ func newServer(chromeCtx context.Context) server {
 		infobipClient = infobip.NewAPIClient(configuration)
 		infobipApiKey = os.Getenv("INFOBIP_API_KEY")
 
+		tfaApplicationName := "LinkLocker"
 		auth := context.WithValue(context.Background(), infobip.ContextAPIKey, infobipApiKey)
 
-		newApplicationRequest := infobip.NewTfaApplicationRequest("LinkLocker")
-		newApplicationResponse, newApplicationHttpResponse, err := infobipClient.
-			TfaApi.
-			CreateTfaApplication(auth).
-			TfaApplicationRequest(*newApplicationRequest).
-			Execute()
+		// First try and get the application id from the db
+		var tfaApp tfaApplication
+		err := db.QueryRow("SELECT id, name, infobip_application_id FROM tfa_application WHERE name = ?", tfaApplicationName).Scan(
+			&tfaApp.id,
+			&tfaApp.name,
+			&tfaApp.infobipApplicationId,
+		)
 
-		if err != nil {
+		if err != nil && err != sql.ErrNoRows {
 			panic(err)
 		}
 
-		fmt.Printf("New Application Response %+v", newApplicationResponse)
-		fmt.Printf("New Application Http Response %+v", newApplicationHttpResponse)
+		// No TFA application was found so let's create and insert one
+		if err == sql.ErrNoRows {
+			pinTimeToLive := "5m"
+			pinAttempts := int32(5)
+			allowMultiplePinVerifications := false
 
-		pinLength := int32(6)
-		repeatCode := "5"
+			tfaApplicationRequest := infobip.NewTfaApplicationRequest(tfaApplicationName)
+			config := tfaApplicationRequest.GetConfiguration()
+			config.PinTimeToLive = &pinTimeToLive
+			config.PinAttempts = &pinAttempts
+			config.AllowMultiplePinVerifications = &allowMultiplePinVerifications
+			tfaApplicationRequest.SetConfiguration(config)
 
-		createMessageRequest := infobip.NewTfaCreateMessageRequest("Your requested token for LinkLocker is {{pin}}", infobip.TFAPINTYPE_ALPHANUMERIC)
-		createMessageRequest.PinLength = &pinLength
-		createMessageRequest.RepeatDTMF = &repeatCode
+			tfaApplicationResponse, _, err := infobipClient.
+				TfaApi.
+				CreateTfaApplication(auth).
+				TfaApplicationRequest(*tfaApplicationRequest).
+				Execute()
 
-		createMessageResponse, createMessageHttpResponse, err := infobipClient.
-			TfaApi.
-			CreateTfaMessageTemplate(auth, *newApplicationResponse.ApplicationId).
-			TfaCreateMessageRequest(*createMessageRequest).
-			Execute()
+			if err != nil {
+				panic(err)
+			}
 
-		if err != nil {
+			tfaApplicationId := uuid.New().String()
+
+			_, err = db.Exec(
+				"INSERT INTO tfa_application (id, name, infobip_application_id) VALUES (?, ?, ?)",
+				tfaApplicationId,
+				tfaApplicationName,
+				*tfaApplicationResponse.ApplicationId,
+			)
+
+			if err != nil {
+				panic(err)
+			}
+
+			infobipAppId = *tfaApplicationResponse.ApplicationId
+		}
+
+		if err == nil {
+			infobipAppId = tfaApp.infobipApplicationId
+		}
+
+		tfaMessageName := "LinkLocker Default"
+
+		// Next lets try and get the message id from the db
+		var tfaMess tfaMessage
+		err = db.QueryRow("SELECT id, application_id, name, infobip_message_id FROM tfa_message WHERE name = ?", tfaMessageName).Scan(
+			&tfaMess.id,
+			&tfaMess.applicationId,
+			&tfaMess.name,
+			&tfaMess.infobipMessageId,
+		)
+
+		if err != nil && err != sql.ErrNoRows {
 			panic(err)
 		}
 
-		fmt.Printf("Create Message Response %+v\n", createMessageResponse)
-		fmt.Printf("Create Message Http Response %+v\n", createMessageHttpResponse)
+		if err == sql.ErrNoRows {
+			pinLength := int32(6)
+			repeatCode := "5"
 
-		infobipAppId = *newApplicationResponse.ApplicationId
-		infobipMessageId = *createMessageResponse.MessageId
+			createMessageRequest := infobip.NewTfaCreateMessageRequest("Your requested token for LinkLocker is {{pin}}", infobip.TFAPINTYPE_NUMERIC)
+			createMessageRequest.PinLength = &pinLength
+			createMessageRequest.RepeatDTMF = &repeatCode
+
+			createMessageResponse, _, err := infobipClient.
+				TfaApi.
+				CreateTfaMessageTemplate(auth, infobipAppId).
+				TfaCreateMessageRequest(*createMessageRequest).
+				Execute()
+
+			if err != nil {
+				panic(err)
+			}
+
+			tfaMessageId := uuid.New().String()
+
+			_, err = db.Exec(
+				"INSERT INTO tfa_message (id, application_id, name, infobip_message_id) VALUES (?, ?, ?, ?)",
+				tfaMessageId,
+				infobipAppId,
+				tfaMessageName,
+				*createMessageResponse.MessageId,
+			)
+
+			if err != nil {
+				panic(err)
+			}
+
+			infobipMessageId = *createMessageResponse.MessageId
+		}
+
+		if err == nil {
+			infobipMessageId = tfaMess.infobipMessageId
+		}
 	}
 
 	return server{

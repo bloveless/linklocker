@@ -14,12 +14,12 @@
     <header>
         <h1 class="logo"><a href='/'><span>Link</span><span>Locker</span></a></h1>
         <nav class="{{if not .Authenticated}}logged-out{{end}}">
-            {{ if .Authenticated }}
-                Logged in as {{ .User.Name }} (<a href="/log-out">Log Out</a>)
-            {{ else }}
+            {{if .Authenticated}}
+                Logged in as {{.User.Name}} (<a href="/log-out">Log Out</a>)
+            {{else}}
                 <a href="/log-in">Log in</a>
                 <a href="/sign-up">Sign Up</a>
-            {{ end }}
+            {{end}}
         </nav>
     </header>
     <main>

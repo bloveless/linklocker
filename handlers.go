@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -206,7 +205,7 @@ func (s server) signUp(w http.ResponseWriter, r *http.Request) {
 	s.session.Put(r, "authenticated", false)
 	s.session.Put(r, "user_id", userUuid)
 
-	http.Redirect(w, r, "/log-in/choose-mfa", http.StatusFound)
+	http.Redirect(w, r, "/log-in/mfa-delivery-method", http.StatusFound)
 }
 
 func (s server) logInForm(w http.ResponseWriter, r *http.Request) {
@@ -278,7 +277,7 @@ func (s server) logIn(w http.ResponseWriter, r *http.Request) {
 		s.session.Put(r, "authenticated", false)
 		s.session.Put(r, "user_id", u.Id.String())
 
-		http.Redirect(w, r, "/log-in/choose-mfa", http.StatusFound)
+		http.Redirect(w, r, "/log-in/mfa-delivery-method", http.StatusFound)
 		return
 	}
 
@@ -297,7 +296,7 @@ func (s server) logIn(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s server) logInChooseMfaForm(w http.ResponseWriter, r *http.Request) {
+func (s server) logInMfaDeliveryMethodForm(w http.ResponseWriter, r *http.Request) {
 	// If there is no user_id then the user hasn't successfully provided their username and password
 	if !s.session.Exists(r, "user_id") {
 		http.Redirect(w, r, "/log-in", http.StatusFound)
@@ -336,10 +335,10 @@ func (s server) logInChooseMfaForm(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	s.render(w, r, "log-in-choose-mfa.page.tmpl", &td)
+	s.render(w, r, "log-in-mfa-delivery-method.page.tmpl", &td)
 }
 
-func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
+func (s server) logInMfaDeliveryMethod(w http.ResponseWriter, r *http.Request) {
 	// If there is no user_id then the user hasn't successfully provided their username and password
 	if !s.session.Exists(r, "user_id") {
 		http.Redirect(w, r, "/log-in", http.StatusFound)
@@ -359,16 +358,16 @@ func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenMethod := r.Form.Get("token_method")
+	deliveryMethod := r.Form.Get("delivery_method")
 
 	formErrors := make(map[string]string)
 
-	if strings.TrimSpace(tokenMethod) == "" {
-		formErrors["token_method"] = "Token method is required"
+	if strings.TrimSpace(deliveryMethod) == "" {
+		formErrors["token_method"] = "Delivery method is required"
 	}
 
-	if tokenMethod != "phone" && tokenMethod != "sms" {
-		formErrors["token_method"] = "Token method must be either phone or sms"
+	if deliveryMethod != "phone" && deliveryMethod != "sms" {
+		formErrors["token_method"] = "Delivery method must be either phone or sms"
 	}
 
 	userUuid := s.session.GetString(r, "user_id")
@@ -396,28 +395,26 @@ func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
 		td.FormData = r.PostForm
 		td.FormErrors = formErrors
 
-		s.render(w, r, "log-in-choose-mfa.page.tmpl", &td)
+		s.render(w, r, "log-in-mfa-delivery-method.page.tmpl", &td)
 		return
 	}
 
 	// Now we have the token method as well as the users phone number so we can send the token to the user
-	_, err = s.db.Exec("UPDATE two_factor_token SET revoked = 1 WHERE user_id = ?", u.Id)
+	_, err = s.db.Exec("UPDATE tfa_token SET revoked = 1 WHERE user_id = ?", u.Id)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	token := generateMfaToken(6)
 	expiresAt := time.Now().Add(5 * time.Minute).UTC()
+	from := "LinkLocker"
+	pinId := ""
 
-	if tokenMethod == "sms" {
+	if deliveryMethod == "sms" {
 		auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
 
-		from := "InfoSMS"
-		to := "18018985067"
-
-		request := infobip.NewTfaStartAuthenticationRequest(s.infobipAppId, s.infobipMessageId, to)
+		request := infobip.NewTfaStartAuthenticationRequest(s.infobipAppId, s.infobipMessageId, u.PhoneNumber)
 		request.From = &from
 
 		sendPinResponse, httpResponse, err := s.infobipClient.
@@ -426,7 +423,7 @@ func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
 			TfaStartAuthenticationRequest(*request).
 			Execute()
 
-		fmt.Println("Send Pin Response Http Response", httpResponse)
+		fmt.Println("Send Pin SMS Response Http Response", httpResponse)
 
 		if err != nil {
 			log.Println(err)
@@ -434,23 +431,7 @@ func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		pinId := sendPinResponse.PinId
-
-		// Now the user has provided their correct username and password so we can send their MFA code via sms
-		// and wait for them to provide it to authenticate their login
-		_, err = s.db.Exec(
-			"INSERT INTO two_factor_token (id, user_id, token_type, token, expires_at_utc) VALUES (?, ?, ?, ?, ?)",
-			uuid.New().String(),
-			u.Id,
-			"infobip_pin_id",
-			pinId,
-			expiresAt.Format("2006-01-02 15:04:05"))
-
-		if err != nil {
-			log.Println(err)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
-		}
+		pinId = *sendPinResponse.PinId
 
 		// request := infobip.NewSmsAdvancedTextualRequest()
 		// destination := infobip.NewSmsDestination(u.PhoneNumber)
@@ -487,56 +468,47 @@ func (s server) logInChooseMfa(w http.ResponseWriter, r *http.Request) {
 		// log.Printf("httpResponse.Body: %v\n", httpResponse.Body)
 	}
 
-	if tokenMethod == "phone" {
-		// The token needs to have spaces between each number so the numbers are read one by one rather than as one
-		// whole number
-		message := "Your requested token for LinkLocker is " + strings.Join(strings.Split(token, ""), " ") + ". Please press 5 to repeat."
-		payload := strings.NewReader(fmt.Sprintf(`{
-			"bulkId": "%s",
-			"messages": [{
-				"text":"%s",
-				"language":"en",
-				"voice":{
-					"name":"Joanna",
-					"gender":"female"
-				},
-				"repeatDtmf": "5",
-				"maxDtmf": 1,
-				"dtmfTimeout": 5,
-				"from":"442032864231",
-				"destinations": [{
-					"to":"%s"
-				}]
-			}]
-		}`, uuid.New().String(), message, u.PhoneNumber))
+	if deliveryMethod == "phone" {
+		auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
 
-		client := &http.Client{
-			Timeout: 30 * time.Second,
-		}
-		req, err := http.NewRequest("POST", s.infobipHost+"/tts/3/advanced", payload)
+		request := infobip.NewTfaStartAuthenticationRequest(s.infobipAppId, s.infobipMessageId, u.PhoneNumber)
+		request.From = &from
+
+		sendPinResponse, httpResponse, err := s.infobipClient.
+			TfaApi.
+			SendTfaPinCodeOverVoice(auth).
+			TfaStartAuthenticationRequest(*request).
+			Execute()
+
+		fmt.Println("Send Pin Voice Response Http Response", httpResponse)
 
 		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		req.Header.Add("Authorization", "App "+s.infobipApiKey)
-		req.Header.Add("Content-Type", "application/json")
-		req.Header.Add("Accept", "application/json")
-
-		res, err := client.Do(req)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer res.Body.Close()
-
-		body, err := ioutil.ReadAll(res.Body)
-		if err != nil {
-			fmt.Println(err)
+			log.Println(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
 
-		fmt.Println(string(body))
+		pinId = *sendPinResponse.PinId
+	}
+
+	if pinId != "" {
+		// We have now sent the user a token via either sms or a phone call. The token is only ever known by Infobip
+		// so, we record the pin id here and that is what we will use to verify the token in a later step
+		_, err = s.db.Exec(
+			"INSERT INTO tfa_token (id, user_id, token_type, token, delivery_method, created_at_utc, expires_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?)",
+			uuid.New().String(),
+			u.Id,
+			"infobip_pin_id",
+			pinId,
+			deliveryMethod,
+			time.Now().UTC().Format("2006-01-02 15:04:05"),
+			expiresAt.Format("2006-01-02 15:04:05"))
+
+		if err != nil {
+			log.Println(err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	http.Redirect(w, r, "/log-in/mfa", http.StatusFound)
@@ -594,20 +566,43 @@ func (s server) logInMfa(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var exists bool
-	err = s.db.QueryRow("SELECT exists (SELECT user_id FROM two_factor_token WHERE user_id = ? AND token = ? AND revoked = 0 AND expires_at_utc >= datetime('now'));", s.session.GetString(r, "user_id"), token).Scan(&exists)
+	var pinId string
+	err = s.db.QueryRow(
+		"SELECT token FROM tfa_token WHERE user_id = ? AND revoked = 0 AND expires_at_utc >= datetime('now');",
+		s.session.GetString(r, "user_id"),
+	).Scan(&pinId)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	if !exists {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+	auth := context.WithValue(r.Context(), infobip.ContextAPIKey, s.infobipApiKey)
+
+	request := infobip.NewTfaVerifyPinRequest(token)
+
+	apiResponse, _, err := s.infobipClient.
+		TfaApi.
+		VerifyTfaPhoneNumber(auth, pinId).
+		TfaVerifyPinRequest(*request).
+		Execute()
+
+	if err != nil {
+		log.Println(err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	_, err = s.db.Exec("UPDATE two_factor_token SET revoked = 1 WHERE user_id = ?", s.session.GetString(r, "user_id"))
+	if apiResponse.PinError != nil && *apiResponse.PinError == "WRONG_PIN" {
+		formErrors["token"] = fmt.Sprintf("Wrong token. You have %d attempts remaining", *apiResponse.AttemptsRemaining)
+		s.render(w, r, "log-in-mfa.page.tmpl", &templateData{
+			FormData:   r.PostForm,
+			FormErrors: formErrors,
+		})
+		return
+	}
+
+	_, err = s.db.Exec("UPDATE tfa_token SET revoked = 1 WHERE user_id = ?", s.session.GetString(r, "user_id"))
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
