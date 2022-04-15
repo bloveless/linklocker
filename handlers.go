@@ -421,6 +421,7 @@ func (s server) logInMfaDeliveryMethod(w http.ResponseWriter, r *http.Request) {
 			TfaApi.
 			SendTfaPinCodeOverSms(auth).
 			TfaStartAuthenticationRequest(*request).
+			NcNeeded(false).
 			Execute()
 
 		fmt.Println("Send Pin SMS Response Http Response", httpResponse)
