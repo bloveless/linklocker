@@ -433,40 +433,6 @@ func (s server) logInMfaDeliveryMethod(w http.ResponseWriter, r *http.Request) {
 		}
 
 		pinId = *sendPinResponse.PinId
-
-		// request := infobip.NewSmsAdvancedTextualRequest()
-		// destination := infobip.NewSmsDestination(u.PhoneNumber)
-		//
-		// from := "LinkLocker"
-		// text := "Your requested token for LinkLocker is: " + token
-		// message := infobip.NewSmsTextualMessage()
-		// message.From = &from
-		// message.Destinations = &[]infobip.SmsDestination{*destination}
-		// message.Text = &text
-		//
-		// request.Messages = &[]infobip.SmsTextualMessage{*message}
-		//
-		// _, httpResponse, err := s.infobipClient.
-		// 	SendSmsApi.
-		// 	SendSmsMessage(auth).
-		// 	SmsAdvancedTextualRequest(*request).
-		// 	Execute()
-		//
-		// if err != nil {
-		// 	apiErr, isApiErr := err.(infobip.GenericOpenAPIError)
-		// 	if isApiErr {
-		// 		ibErr, isIbErr := apiErr.Model().(infobip.SmsApiException)
-		// 		if isIbErr {
-		// 			fmt.Println(ibErr.RequestError.ServiceException.GetMessageId())
-		// 			fmt.Println(ibErr.RequestError.ServiceException.GetText())
-		// 		}
-		// 	}
-		// 	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		// 	return
-		// }
-		//
-		// log.Printf("httpResponse.StatusCode: %v\n", httpResponse.StatusCode)
-		// log.Printf("httpResponse.Body: %v\n", httpResponse.Body)
 	}
 
 	if deliveryMethod == "phone" {
