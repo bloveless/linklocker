@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
 	"os"
 
 	"github.com/chromedp/chromedp"
@@ -16,13 +15,13 @@ func main() {
 		log.Println("Unable to load .env file. Proceeding without it")
 	}
 
-	chromeUrl := os.Getenv("CHROME_URL")
+	chromeURL := os.Getenv("CHROME_URL")
 
 	var chromeCtx context.Context
-	if chromeUrl != "" {
+	if chromeURL != "" {
 		log.Println("Starting to get screenshot")
 		// create context
-		allocatorContext, allocatorCancel := chromedp.NewRemoteAllocator(context.Background(), chromeUrl)
+		allocatorContext, allocatorCancel := chromedp.NewRemoteAllocator(context.Background(), chromeURL)
 		defer allocatorCancel()
 
 		currentContext, cancel := chromedp.NewContext(allocatorContext)
@@ -39,8 +38,10 @@ func main() {
 	server := newServer(chromeCtx)
 	server.startScreenshotRequestProcessor()
 
+	e := server.getRouter()
+	e.Renderer = server.templates
+	e.Debug = true
+
 	log.Println("Starting server on 0.0.0.0:3000")
-	if err := http.ListenAndServe("0.0.0.0:3000", server.getRouter()); err != nil {
-		panic(err)
-	}
+	e.Logger.Error(e.Start("0.0.0.0:3000"))
 }

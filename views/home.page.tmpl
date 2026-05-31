@@ -1,56 +1,58 @@
-{{template "base" .}}
+{{template "header" .}}
 
 {{define "title"}}Home{{end}}
 
-{{define "main"}}
-    {{if .Authenticated}}
-        <form id="add-a-link-form" class="hidden" method="post" action="/link">
-            {{.CSRFTag}}
-            <div>
-                <label class="fancy" for="create-link-url">URL</label>
-                {{with .FormErrors.url}}
-                    <label class="error">{{.}}</label>
-                {{end}}
-                <input id="create-link-url" required type="url" name="url" value="{{.FormData.Get "url"}}"/>
-            </div>
-            <div>
-                <label class="fancy" for="create-link-display-url">Display URL</label>
-                <span>(if you'd like the screenshot to show a different URL than the link)</span>
-                {{with .FormErrors.display_url}}
-                    <label class="error">{{.}}</label>
-                {{end}}
-                <input id="create-link-display-url" type="url" name="display_url"
-                       value="{{.FormData.Get "display_url"}}"/>
-            </div>
-            <div>
-                <input type="submit" name="Submit Link"/>
-            </div>
-        </form>
-        <h2>Your links
-            <button id="add-a-link" class="text small">Add a link</button>
-        </h2>
-        <div class="screenshots-container">
-            <div class="screenshots-row">
-            {{range $i, $link := .Links}}
+{{if .Authenticated}}
+    <form id="add-a-link-form" class="hidden" method="post" action="/link">
+        <input type="hidden" name="_csrf" value="{{.CSRFToken}}" />
+        <div>
+            <label class="fancy" for="create-link-url">URL</label>
+            {{with .FormErrors.url}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="create-link-url" required type="url" name="url" value="{{.FormData.Get "url"}}"/>
+        </div>
+        <div>
+            <label class="fancy" for="create-link-display-url">Display URL</label>
+            <span>(if you'd like the screenshot to show a different URL than the link)</span>
+            {{with .FormErrors.display_url}}
+                <label class="error">{{.}}</label>
+            {{end}}
+            <input id="create-link-display-url" type="url" name="display_url"
+                   value="{{.FormData.Get "display_url"}}"/>
+        </div>
+        <div>
+            <input type="submit" name="Submit Link"/>
+        </div>
+    </form>
+    <h2>Your links
+        <button id="add-a-link" class="text small">Add a link</button>
+    </h2>
+    <div class="screenshots-container">
+        <div class="screenshots-row">
+        {{range $i, $link := .Links}}
 
-                <div class="screenshot-image"
-                     style="background-image: url({{if $link.ScreenshotUrl}}{{$link.ScreenshotUrl}}{{else}}/static/img/loading.png{{end}});">
-                    <div class="screenshot-link">
-                        <a href="{{$link.Url}}" target="_blank">{{$link.Url}}</a>
-                    </div>
-                    <div class="screenshot-link-controls">
-                        <button data-link-id="{{$link.Id}}" class="refresh-link text">Refresh</button>
-                        <button data-link-id="{{$link.Id}}" class="edit-link text">Edit</button>
-                    </div>
+            <div class="screenshot-image"
+                 style="background-image: url({{if $link.ScreenshotUrl}}{{$link.ScreenshotUrl}}{{else}}/static/img/loading.png{{end}});">
+                <div class="screenshot-link">
+                    <a href="{{$link.Url}}" target="_blank">{{$link.Url}}</a>
                 </div>
-                {{if mod $i 3}}
+                <div class="screenshot-link-controls">
+                    <button data-link-id="{{$link.Id}}" class="refresh-link text">Refresh</button>
+                    <button data-link-id="{{$link.Id}}" class="edit-link text">Edit</button>
+                </div>
+            </div>
+            {{with $mod := index . "mod"}}
+                {{if call $mod $i 3}}
                     </div>
                     <div class="screenshots-row">
                 {{end}}
             {{end}}
-            </div>
+        {{end}}
         </div>
-    {{else}}
-        <div>Log in to start submitting links</div>
-    {{end}}
+    </div>
+{{else}}
+    <div>Log in to start submitting links</div>
 {{end}}
+
+{{template "footer" .}}

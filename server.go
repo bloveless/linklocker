@@ -3,16 +3,18 @@ package main
 import (
 	"context"
 	"database/sql"
+	"html/template"
+	"io"
 	"os"
 	"time"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite3"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/golangcollege/sessions"
-	"github.com/google/uuid"
-	"github.com/infobip/infobip-api-go-client/v2"
+	"github.com/labstack/echo/v4"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/twilio/twilio-go"
 )
 
 type screenshotRequest struct {
@@ -21,33 +23,30 @@ type screenshotRequest struct {
 	displayUrl string
 }
 
+type Template struct {
+	templates *template.Template
+}
+
+func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	if data == nil {
+		data = templateData{}
+	}
+
+	return t.templates.ExecuteTemplate(w, name, data)
+}
+
 type server struct {
 	db                 *sql.DB
-	session            *sessions.Session
+	sessionManager     *scs.SessionManager
 	screenshotRequests chan screenshotRequest
 	chromeDpContext    context.Context
 	enableMfa          bool
-	infobipClient      *infobip.APIClient
-	infobipHost        string
-	infobipApiKey      string
-	infobipAppId       string
-	infobipMessageId   string
-}
-
-type tfaApplication struct {
-	id                   string
-	name                 string
-	infobipApplicationId string
-}
-
-type tfaMessage struct {
-	id               string
-	applicationId    string
-	name             string
-	infobipMessageId string
+	twilioClient       *twilio.RestClient
+	templates          *Template
 }
 
 func newServer(chromeCtx context.Context) server {
+
 	db, err := sql.Open("sqlite3", "linklocker.sqlite")
 	if err != nil {
 		panic(err)
@@ -73,10 +72,6 @@ func newServer(chromeCtx context.Context) server {
 		panic(err)
 	}
 
-	session := sessions.New([]byte(os.Getenv("SESSION_SECRET")))
-	session.Lifetime = 24 * time.Hour
-	session.HttpOnly = true
-
 	err = m.Up()
 	if err != nil && err != migrate.ErrNoChange {
 		panic(err)
@@ -86,145 +81,32 @@ func newServer(chromeCtx context.Context) server {
 
 	enableMfa := os.Getenv("ENABLE_MFA") == "true"
 
-	infobipHost := ""
-	infobipApiKey := ""
-	infobipAppId := ""
-	infobipMessageId := ""
+	sessionManager := scs.New()
+	sessionManager.Lifetime = 24 * time.Hour
+	sessionManager.Cookie.HttpOnly = true
 
-	var infobipClient *infobip.APIClient
+	ts, err := template.New("templates").
+		Funcs(template.FuncMap{"mod": func(i, j int) bool { return (i+1)%j == 0 }}).
+		ParseGlob("views/*.tmpl")
+	if err != nil {
+		panic(err)
+	}
 
+	var twilioClient *twilio.RestClient
 	if enableMfa {
-		infobipHost = os.Getenv("INFOBIP_HOST")
-
-		configuration := infobip.NewConfiguration()
-		configuration.Host = infobipHost
-
-		infobipClient = infobip.NewAPIClient(configuration)
-		infobipApiKey = os.Getenv("INFOBIP_API_KEY")
-
-		tfaApplicationName := "LinkLocker"
-		auth := context.WithValue(context.Background(), infobip.ContextAPIKey, infobipApiKey)
-
-		// First try and get the application id from the db
-		var tfaApp tfaApplication
-		err := db.QueryRow("SELECT id, name, infobip_application_id FROM tfa_application WHERE name = ?", tfaApplicationName).Scan(
-			&tfaApp.id,
-			&tfaApp.name,
-			&tfaApp.infobipApplicationId,
-		)
-
-		if err != nil && err != sql.ErrNoRows {
-			panic(err)
-		}
-
-		// No TFA application was found so let's create and insert one
-		if err == sql.ErrNoRows {
-			pinTimeToLive := "5m"
-			pinAttempts := int32(5)
-			allowMultiplePinVerifications := false
-
-			tfaApplicationRequest := infobip.NewTfaApplicationRequest(tfaApplicationName)
-			config := tfaApplicationRequest.GetConfiguration()
-			config.PinTimeToLive = &pinTimeToLive
-			config.PinAttempts = &pinAttempts
-			config.AllowMultiplePinVerifications = &allowMultiplePinVerifications
-			tfaApplicationRequest.SetConfiguration(config)
-
-			tfaApplicationResponse, _, err := infobipClient.
-				TfaApi.
-				CreateTfaApplication(auth).
-				TfaApplicationRequest(*tfaApplicationRequest).
-				Execute()
-
-			if err != nil {
-				panic(err)
-			}
-
-			tfaApplicationId := uuid.New().String()
-
-			_, err = db.Exec(
-				"INSERT INTO tfa_application (id, name, infobip_application_id) VALUES (?, ?, ?)",
-				tfaApplicationId,
-				tfaApplicationName,
-				*tfaApplicationResponse.ApplicationId,
-			)
-
-			if err != nil {
-				panic(err)
-			}
-
-			infobipAppId = *tfaApplicationResponse.ApplicationId
-		}
-
-		if err == nil {
-			infobipAppId = tfaApp.infobipApplicationId
-		}
-
-		tfaMessageName := "LinkLocker Default"
-
-		// Next lets try and get the message id from the db
-		var tfaMess tfaMessage
-		err = db.QueryRow("SELECT id, application_id, name, infobip_message_id FROM tfa_message WHERE name = ?", tfaMessageName).Scan(
-			&tfaMess.id,
-			&tfaMess.applicationId,
-			&tfaMess.name,
-			&tfaMess.infobipMessageId,
-		)
-
-		if err != nil && err != sql.ErrNoRows {
-			panic(err)
-		}
-
-		if err == sql.ErrNoRows {
-			pinLength := int32(6)
-			repeatCode := "5"
-
-			createMessageRequest := infobip.NewTfaCreateMessageRequest("Your requested token for LinkLocker is {{pin}}", infobip.TFAPINTYPE_NUMERIC)
-			createMessageRequest.PinLength = &pinLength
-			createMessageRequest.RepeatDTMF = &repeatCode
-
-			createMessageResponse, _, err := infobipClient.
-				TfaApi.
-				CreateTfaMessageTemplate(auth, infobipAppId).
-				TfaCreateMessageRequest(*createMessageRequest).
-				Execute()
-
-			if err != nil {
-				panic(err)
-			}
-
-			tfaMessageId := uuid.New().String()
-
-			_, err = db.Exec(
-				"INSERT INTO tfa_message (id, application_id, name, infobip_message_id) VALUES (?, ?, ?, ?)",
-				tfaMessageId,
-				infobipAppId,
-				tfaMessageName,
-				*createMessageResponse.MessageId,
-			)
-
-			if err != nil {
-				panic(err)
-			}
-
-			infobipMessageId = *createMessageResponse.MessageId
-		}
-
-		if err == nil {
-			infobipMessageId = tfaMess.infobipMessageId
-		}
+		twilioClient = twilio.NewRestClientWithParams(twilio.ClientParams{
+			Username: os.Getenv("TWILIO_SID"),
+			Password: os.Getenv("TWILIO_AUTH_TOKEN"),
+		})
 	}
 
 	return server{
 		db:                 db,
-		session:            session,
+		sessionManager:     sessionManager,
 		screenshotRequests: screenshotRequests,
 		chromeDpContext:    chromeCtx,
-		infobipClient:      infobipClient,
+		twilioClient:       twilioClient,
 		enableMfa:          enableMfa,
-		infobipHost:        "https://" + infobipHost,
-		infobipApiKey:      infobipApiKey,
-		infobipAppId:       infobipAppId,
-		infobipMessageId:   infobipMessageId,
+		templates:          &Template{templates: ts},
 	}
 }

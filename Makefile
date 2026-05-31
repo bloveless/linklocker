@@ -4,7 +4,7 @@ deps:
 
 .PHONY=up
 up: deps
-	go run .../.
+	gow -e=go,tmpl run ./... main.go
 
 .PHONY=down
 down:

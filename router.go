@@ -1,49 +1,39 @@
 package main
 
 import (
-	"net/http"
-	"os"
 	"time"
 
-	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
-	"github.com/gorilla/csrf"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
-func (s server) getRouter() *chi.Mux {
-	r := chi.NewRouter()
+func (s server) getRouter() *echo.Echo {
+	e := echo.New()
 
-	csrfMiddleware := csrf.Protect([]byte(os.Getenv("CSRF_SECRET")))
+	e.Use(echo.WrapMiddleware(s.sessionManager.LoadAndSave))
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.CSRFWithConfig(middleware.CSRFConfig{
+		TokenLookup: "form:_csrf",
+	}))
+	e.Use(middleware.RequestID())
+	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
+		Timeout: 60 * time.Second,
+	}))
 
-	// A good base middleware stack
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(csrfMiddleware)
+	e.Static("/static", "static")
 
-	// Set a timeout value on the request context (ctx), that will signal
-	// through ctx.Done() that the request has timed out and further
-	// processing should be stopped.
-	r.Use(middleware.Timeout(60 * time.Second))
+	e.GET("/", s.home)
+	e.POST("/link", s.createLink)
+	e.GET("/sign-up", s.signUpForm)
+	e.POST("/sign-up", s.signUp)
+	e.GET("/log-in", s.logInForm)
+	e.POST("/log-in", s.logIn)
+	e.GET("/log-in/mfa-delivery-method", s.logInMfaDeliveryMethodForm)
+	e.POST("/log-in/mfa-delivery-method", s.logInMfaDeliveryMethod)
+	e.GET("/log-in/mfa", s.logInMfaForm)
+	e.POST("/log-in/mfa", s.logInMfa)
+	e.GET("/log-out", s.logOut)
 
-	fs := http.FileServer(http.Dir("static"))
-	r.Handle("/static/*", http.StripPrefix("/static/", fs))
-
-	r.Group(func(r chi.Router) {
-		r.Use(s.session.Enable)
-		r.Get("/", s.home)
-		r.Post("/link", s.createLink)
-		r.Get("/sign-up", s.signUpForm)
-		r.Post("/sign-up", s.signUp)
-		r.Get("/log-in", s.logInForm)
-		r.Post("/log-in", s.logIn)
-		r.Get("/log-in/mfa-delivery-method", s.logInMfaDeliveryMethodForm)
-		r.Post("/log-in/mfa-delivery-method", s.logInMfaDeliveryMethod)
-		r.Get("/log-in/mfa", s.logInMfaForm)
-		r.Post("/log-in/mfa", s.logInMfa)
-		r.Get("/log-out", s.logOut)
-	})
-
-	return r
+	return e
 }
